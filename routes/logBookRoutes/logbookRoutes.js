@@ -15,6 +15,7 @@ logBookRouter.post("/add", authenticateUser, async (req, res) => {
     dailyLogs,
     department,
     studentName,
+    school,
   } = req.body;
   if (
     !studentId ||
@@ -22,7 +23,8 @@ logBookRouter.post("/add", authenticateUser, async (req, res) => {
     !weekSummary ||
     !dailyLogs ||
     !department ||
-    !studentName
+    !studentName ||
+    !school
   ) {
     return res.status(400).json({
       message:
@@ -32,8 +34,8 @@ logBookRouter.post("/add", authenticateUser, async (req, res) => {
 
   try {
     db.query(
-      "INSERT INTO logbooks (student_id, week_number, weekly_summary, daily_logs, department, student_name) VALUES ($1, $2, $3, $4, $5, $6)",
-      [studentId, weekNumber, weekSummary, dailyLogs, department, studentName]
+      "INSERT INTO logbooks (student_id, week_number, weekly_summary, daily_logs, department, student_name, school) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+      [studentId, weekNumber, weekSummary, dailyLogs, department, studentName, school]
     );
     res.status(200).json({ message: "Logbook created successfully" });
   } catch (error) {
@@ -99,24 +101,84 @@ logBookRouter.get("/logbook/:logbookId", authenticateUser, async (req, res) => {
 
 //* Update a logbook. Supervisor only approves logbook
 logBookRouter.put(
-  "/admin/logbook/:id",
+  "/admin/logbook/comments/:id",
   authenticateUser,
   isSupervisor,
   async (req, res) => {
     const id = req.params.id;
-    const { supervisor_comments, signed_by } = req.body;
-    const isApproved = true;
+    const { supervisor_comments } = req.body;
 
-    if (!signed_by) {
-      return res.status(400).json({ message: "Please sign the logbook" });
-    }
-
-    //* Whether there is supervisor comments or not, update the logbook with signed by and supervisor comments
+    //* Whether there is supervisor comments or not, update the logbook with supervisor comments
     try {
-      db.query(
-        "UPDATE logbooks SET signed_by = $1, supervisor_comments = $2, is_approved = $3 WHERE id = $4",
-        [signed_by, supervisor_comments, isApproved, id]
-      );
+      db.query("UPDATE logbooks SET supervisor_comments = $1 WHERE id = $2", [
+        supervisor_comments,
+        id,
+      ]);
+      res.status(200).json({ message: "Logbook updated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  }
+);
+
+//* Update a logbook. Update the signed by field
+logBookRouter.put(
+  "/admin/logbook/supervisor-phone/:id",
+  authenticateUser,
+  isSupervisor,
+  async (req, res) => {
+    const id = req.params.id;
+    const { supervisor_phone } = req.body;
+
+    //* Whether there is supervisor comments or not, update the logbook with supervisor comments
+    try {
+      db.query("UPDATE logbooks SET supervisor_phone = $1 WHERE id = $2", [
+        supervisor_phone,
+        id,
+      ]);
+      res.status(200).json({ message: "Logbook updated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  }
+);
+
+logBookRouter.put(
+  "/admin/logbook/signedby/:id",
+  authenticateUser,
+  isSupervisor,
+  async (req, res) => {
+    const id = req.params.id;
+    const { signed_by } = req.body;
+
+    //* Whether there is signed by or not, update the logbook with signed by field
+    try {
+      db.query("UPDATE logbooks SET signed_by = $1 WHERE id = $2", [
+        signed_by,
+        id,
+      ]);
+      res.status(200).json({ message: "Logbook updated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  }
+);
+
+//* Approve Logbook By Supervisor
+logBookRouter.put(
+  "/admin/logbook/approve/:id",
+  authenticateUser,
+  isSupervisor,
+  async (req, res) => {
+    const id = req.params.id;
+    const is_approved = true;
+
+    //* Whether there is signed by or not, update the logbook with signed by field
+    try {
+      db.query("UPDATE logbooks SET is_approved = $1 WHERE id = $2", [
+        is_approved,
+        id,
+      ]);
       res.status(200).json({ message: "Logbook updated successfully" });
     } catch (error) {
       res.status(500).json({ message: "Internal Server Error" });
@@ -274,25 +336,21 @@ logBookRouter.get(
   }
 );
 
-logBookRouter.post(
-  "/send-email",
-  authenticateUser,
-  async (req, res) => {
-    const { from, to, subject, text } = req.body;
+logBookRouter.post("/send-email", authenticateUser, async (req, res) => {
+  const { from, to, subject, text } = req.body;
 
-    try {
-      const result = await sendEmail(from, to, subject, text);
-      if (result) {
-        res.status(200).json({ message: "Email sent successfully!" });
-      } else {
-        res.status(500).json({ message: "Failed to send email." });
-      }
-    } catch (error) {
-      res
-        .status(500)
-        .json({ message: "An error occurred while sending the email." });
+  try {
+    const result = await sendEmail(from, to, subject, text);
+    if (result) {
+      res.status(200).json({ message: "Email sent successfully!" });
+    } else {
+      res.status(500).json({ message: "Failed to send email." });
     }
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "An error occurred while sending the email." });
   }
-);
+});
 
 module.exports = logBookRouter;
